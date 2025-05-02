@@ -1,0 +1,183 @@
+import json
+import os
+import datetime # Optional: to add timestamps
+
+# --- Configuration ---
+DATA_FILE = "todolist.json"
+
+# --- Core Functions ---
+
+def load_tasks():
+    """Loads tasks from the JSON file."""
+    if not os.path.exists(DATA_FILE):
+        return []  # Return empty list if file doesn't exist
+    try:
+        with open(DATA_FILE, 'r') as f:
+            tasks = json.load(f)
+            # Basic validation (ensure it's a list of dicts with required keys)
+            if not isinstance(tasks, list):
+                print("Warning: Data file is corrupt. Starting with an empty list.")
+                return []
+            for task in tasks:
+                if not isinstance(task, dict) or 'description' not in task or 'completed' not in task:
+                    print(f"Warning: Invalid task format found: {task}. Skipping.")
+                    # Optionally remove invalid tasks here
+            # Filter out potentially invalid tasks if needed, or handle more gracefully
+            valid_tasks = [t for t in tasks if isinstance(t, dict) and 'description' in t and 'completed' in t]
+            if len(valid_tasks) != len(tasks):
+                 print("Warning: Some invalid tasks were filtered out during loading.")
+            return valid_tasks
+    except json.JSONDecodeError:
+        print(f"Error: Could not decode JSON from {DATA_FILE}. Starting with an empty list.")
+        return []
+    except Exception as e:
+        print(f"An unexpected error occurred while loading tasks: {e}")
+        return []
+
+def save_tasks(tasks):
+    """Saves the current list of tasks to the JSON file."""
+    try:
+        with open(DATA_FILE, 'w') as f:
+            json.dump(tasks, f, indent=4) # indent for readability
+    except IOError as e:
+        print(f"Error: Could not write tasks to {DATA_FILE}. Changes may not be saved. {e}")
+    except Exception as e:
+        print(f"An unexpected error occurred while saving tasks: {e}")
+
+
+def display_tasks(tasks):
+    """Displays all tasks with their index and status."""
+    print("\n--- Your To-Do List ---")
+    if not tasks:
+        print("Your to-do list is empty!")
+        return
+
+    max_len = max(len(t['description']) for t in tasks) if tasks else 0
+    # Add extra space for status and index
+    display_width = max(max_len + 10, 20) # Minimum width
+
+    print("-" * display_width)
+    for index, task in enumerate(tasks):
+        status = "[X]" if task.get("completed", False) else "[ ]" # Use .get for safety
+        description = task.get('description', 'No Description')
+        # Optional: Add timestamp if available
+        timestamp = f" (Added: {task['timestamp']})" if 'timestamp' in task else ""
+        print(f"{index + 1}. {status} {description}{timestamp}")
+    print("-" * display_width)
+
+
+def add_task(tasks):
+    """Adds a new task to the list."""
+    description = input("Enter the task description: ").strip()
+    if not description:
+        print("Task description cannot be empty.")
+        return
+
+    new_task = {
+        "description": description,
+        "completed": False,
+        # Optional: Add a timestamp
+        "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    }
+    tasks.append(new_task)
+    print(f"Task '{description}' added.")
+    save_tasks(tasks) # Save after adding
+
+def mark_task_complete(tasks):
+    """Marks a specific task as completed."""
+    display_tasks(tasks)
+    if not tasks:
+        return
+
+    while True:
+        try:
+            choice = input("Enter the number of the task to mark as complete (or 0 to cancel): ")
+            task_number = int(choice)
+            if task_number == 0:
+                return # Cancelled
+            if 1 <= task_number <= len(tasks):
+                task_index = task_number - 1
+                if tasks[task_index]["completed"]:
+                     print(f"Task {task_number} ('{tasks[task_index]['description']}') is already marked as complete.")
+                else:
+                    tasks[task_index]["completed"] = True
+                    print(f"Task {task_number} ('{tasks[task_index]['description']}') marked as complete.")
+                    save_tasks(tasks) # Save after marking
+                break # Exit loop after valid input
+            else:
+                print(f"Invalid task number. Please enter a number between 1 and {len(tasks)}.")
+        except ValueError:
+            print("Invalid input. Please enter a number.")
+        except IndexError:
+             print("An unexpected index error occurred. Please try again.") # Should not happen with range check
+
+
+def delete_task(tasks):
+    """Deletes a specific task from the list."""
+    display_tasks(tasks)
+    if not tasks:
+        return
+
+    while True:
+        try:
+            choice = input("Enter the number of the task to delete (or 0 to cancel): ")
+            task_number = int(choice)
+
+            if task_number == 0:
+                return # Cancelled
+
+            if 1 <= task_number <= len(tasks):
+                task_index = task_number - 1
+                removed_task = tasks.pop(task_index) # Remove and get the item
+                print(f"Task {task_number} ('{removed_task['description']}') deleted.")
+                save_tasks(tasks) # Save after deleting
+                break # Exit loop after valid input
+            else:
+                print(f"Invalid task number. Please enter a number between 1 and {len(tasks)}.")
+        except ValueError:
+            print("Invalid input. Please enter a number.")
+        except IndexError:
+             print("An unexpected index error occurred. Please try again.") # Should not happen with range check
+
+# --- Main Application Loop ---
+
+def print_menu():
+    """Prints the main menu options."""
+    print("\n--- To-Do List Menu ---")
+    print("1. View Tasks")
+    print("2. Add Task")
+    print("3. Mark Task as Complete")
+    print("4. Delete Task")
+    print("5. Exit")
+    print("-----------------------")
+
+def main():
+    """Main function to run the application."""
+    tasks = load_tasks()
+
+    while True:
+        print_menu()
+        choice = input("Enter your choice (1-5): ").strip()
+
+        if choice == '1':
+            display_tasks(tasks)
+        elif choice == '2':
+            add_task(tasks)
+            # save_tasks is called within add_task
+        elif choice == '3':
+            mark_task_complete(tasks)
+            # save_tasks is called within mark_task_complete
+        elif choice == '4':
+            delete_task(tasks)
+            # save_tasks is called within delete_task
+        elif choice == '5':
+            print("Exiting the To-Do List application. Goodbye!")
+            # Final save just in case (though should be saved after each mod)
+            save_tasks(tasks)
+            break
+        else:
+            print("Invalid choice. Please enter a number between 1 and 5.")
+
+# --- Entry Point ---
+if __name__ == "__main__":
+    main()
